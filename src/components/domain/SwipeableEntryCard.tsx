@@ -99,6 +99,7 @@ export const SwipeableEntryCard: React.FC<SwipeableEntryCardProps> = ({
       {entry.audioMemo ? (
         <View style={styles.audioWrap}>
           <WaveformBar
+            uri={entry.audioMemo.uri}
             waveformHeights={entry.audioMemo.waveformHeights}
             durationSec={entry.audioMemo.durationSec}
             recordedAt={entry.audioMemo.recordedAt}
@@ -307,3 +308,4 @@ const styles = StyleSheet.create({
     color: '#818CF8',
   },
 });
+

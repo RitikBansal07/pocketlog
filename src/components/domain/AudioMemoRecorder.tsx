@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AudioMemo } from '../../types/domain';
 import { Haptics } from '../../utils/haptics';
+import { audioEngine } from '../../utils/audioEngine';
 
 interface AudioMemoRecorderProps {
   visible: boolean;
@@ -16,7 +17,10 @@ export const AudioMemoRecorder: React.FC<AudioMemoRecorderProps> = ({
   onSave,
 }) => {
   const [isRecording, setIsRecording] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [secondsElapsed, setSecondsElapsed] = useState(0);
+  const [liveMeterBars, setLiveMeterBars] = useState<number[]>([15, 20, 25, 20, 15]);
+  const liveIntervalRef = useRef<any>(null);
 
   useEffect(() => {
     let timer: any;
@@ -24,39 +28,73 @@ export const AudioMemoRecorder: React.FC<AudioMemoRecorderProps> = ({
       timer = setInterval(() => {
         setSecondsElapsed((prev) => prev + 1);
       }, 1000);
+
+      // Sample live mic audio levels every 120ms for visual meter
+      liveIntervalRef.current = setInterval(() => {
+        const level = audioEngine.getLiveAudioLevel();
+        setLiveMeterBars([
+          Math.max(12, level * 0.4),
+          Math.max(16, level * 0.7),
+          Math.max(22, level * 1.0),
+          Math.max(28, level * 0.9),
+          Math.max(20, level * 0.6),
+          Math.max(14, level * 0.35),
+        ]);
+      }, 120);
+    } else {
+      if (liveIntervalRef.current) clearInterval(liveIntervalRef.current);
     }
-    return () => clearInterval(timer);
+
+    return () => {
+      clearInterval(timer);
+      if (liveIntervalRef.current) clearInterval(liveIntervalRef.current);
+    };
   }, [isRecording]);
 
-  const handleStartRecording = () => {
+  const handleStartRecording = async () => {
     Haptics.impactAsync('medium');
     setIsRecording(true);
     setSecondsElapsed(0);
+    try {
+      await audioEngine.startRecording();
+    } catch (e) {
+      console.warn('Error starting recording:', e);
+    }
   };
 
-  const handleStopAndSave = () => {
+  const handleStopAndSave = async () => {
     Haptics.notificationAsync('success');
     setIsRecording(false);
+    setIsProcessing(true);
 
-    // Generate 16 sample amplitude heights for waveform visualization
-    const heights = Array.from({ length: 16 }, () => Math.floor(Math.random() * 70) + 30);
+    try {
+      const result = await audioEngine.stopRecording();
 
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    const newMemo: AudioMemo = {
-      id: `aud-${Date.now()}`,
-      uri: `file://reflection-memo-${Date.now()}.m4a`,
-      durationSec: Math.max(3, secondsElapsed),
-      recordedAt: timeStr,
-      waveformHeights: heights,
-    };
+      const newMemo: AudioMemo = {
+        id: `aud-${Date.now()}`,
+        uri: result.uri,
+        durationSec: result.durationSec,
+        recordedAt: timeStr,
+        waveformHeights: result.waveformHeights,
+      };
 
-    onSave(newMemo);
-    onClose();
+      onSave(newMemo);
+      onClose();
+    } catch (err) {
+      console.warn('Failed to stop and encode audio recording:', err);
+      onClose();
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleCancel = () => {
+    if (isRecording) {
+      audioEngine.stopRecording().catch(() => {});
+    }
     setIsRecording(false);
     setSecondsElapsed(0);
     onClose();
@@ -77,40 +115,66 @@ export const AudioMemoRecorder: React.FC<AudioMemoRecorderProps> = ({
               <Ionicons name="mic" size={20} color="#6366F1" />
               <Text style={styles.title}>Voice Reflection Memo</Text>
             </View>
-            <TouchableOpacity onPress={handleCancel}>
+            <TouchableOpacity onPress={handleCancel} disabled={isProcessing}>
               <Ionicons name="close" size={22} color="#64748B" />
             </TouchableOpacity>
           </View>
 
           <Text style={styles.subText}>
-            Speak your thoughts, daily gratitude, or audio stream of consciousness.
+            Speak clearly into your microphone to record your voice. You can listen back right after saving.
           </Text>
+
+          {/* Live Mic Meter */}
+          {isRecording ? (
+            <View style={styles.liveMeterRow}>
+              {liveMeterBars.map((height, idx) => (
+                <View key={idx} style={[styles.liveMeterBar, { height }]} />
+              ))}
+            </View>
+          ) : null}
 
           {/* Mic Button & Ripple */}
           <View style={styles.micContainer}>
             <TouchableOpacity
-              style={[styles.micBtn, isRecording && styles.micBtnRecording]}
+              style={[
+                styles.micBtn,
+                isRecording && styles.micBtnRecording,
+                isProcessing && { opacity: 0.6 },
+              ]}
               onPress={isRecording ? handleStopAndSave : handleStartRecording}
+              disabled={isProcessing}
               accessibilityRole="button"
               accessibilityLabel={isRecording ? 'Stop recording voice reflection' : 'Start recording'}
               testID="mic-record-btn"
             >
-              <Ionicons
-                name={isRecording ? 'stop' : 'mic'}
-                size={34}
-                color="#FFFFFF"
-              />
+              {isProcessing ? (
+                <ActivityIndicator color="#FFFFFF" size="large" />
+              ) : (
+                <Ionicons
+                  name={isRecording ? 'stop' : 'mic'}
+                  size={34}
+                  color="#FFFFFF"
+                />
+              )}
             </TouchableOpacity>
 
             <Text style={styles.timerText}>{formatSecs(secondsElapsed)}</Text>
             <Text style={styles.statusText}>
-              {isRecording ? 'Recording audio reflection... Tap to finish.' : 'Tap microphone to speak'}
+              {isProcessing
+                ? 'Saving voice audio...'
+                : isRecording
+                ? '🔴 Recording live voice... Tap square to finish'
+                : 'Tap microphone to speak'}
             </Text>
           </View>
 
-          {/* Cancel button */}
+          {/* Discard button */}
           <View style={styles.actionRow}>
-            <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
+            <TouchableOpacity
+              style={styles.cancelBtn}
+              onPress={handleCancel}
+              disabled={isProcessing}
+            >
               <Text style={styles.cancelBtnText}>Discard</Text>
             </TouchableOpacity>
           </View>
@@ -157,11 +221,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#94A3B8',
     lineHeight: 18,
-    marginBottom: 20,
+    marginBottom: 16,
+  },
+  liveMeterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    height: 36,
+    marginBottom: 10,
+  },
+  liveMeterBar: {
+    width: 6,
+    backgroundColor: '#6366F1',
+    borderRadius: 3,
   },
   micContainer: {
     alignItems: 'center',
-    paddingVertical: 14,
+    paddingVertical: 10,
   },
   micBtn: {
     width: 80,
@@ -189,8 +266,9 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 12,
-    color: '#64748B',
-    marginTop: 4,
+    color: '#94A3B8',
+    marginTop: 6,
+    fontWeight: '600',
   },
   actionRow: {
     marginTop: 14,

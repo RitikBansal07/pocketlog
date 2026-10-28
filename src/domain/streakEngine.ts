@@ -136,3 +136,4 @@ export function calculateStreakStats(entries: JournalEntry[]): StreakStats {
     completedHabitsCount,
   };
 }
+

@@ -16,3 +16,4 @@ export type MainTabParamList = {
 export type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 export type EntryDetailRouteProp = RouteProp<RootStackParamList, 'EntryDetail'>;
 export type EntryEditorRouteProp = RouteProp<RootStackParamList, 'EntryEditor'>;
+

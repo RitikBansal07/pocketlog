@@ -70,3 +70,4 @@ export class StorageRepository {
 }
 
 export const storageRepository = new StorageRepository();
+

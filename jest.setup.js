@@ -37,3 +37,4 @@ jest.mock('@expo/vector-icons', () => {
     FontAwesome5: (props) => React.createElement(View, { ...props, testID: props.testID || 'icon-mock' }),
   };
 });
+

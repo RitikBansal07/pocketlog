@@ -243,6 +243,7 @@ export const EntryEditorScreen: React.FC = () => {
 
           {audioMemo ? (
             <WaveformBar
+              uri={audioMemo.uri}
               waveformHeights={audioMemo.waveformHeights}
               durationSec={audioMemo.durationSec}
               recordedAt={audioMemo.recordedAt}
@@ -540,3 +541,4 @@ const styles = StyleSheet.create({
     color: '#A5B4FC',
   },
 });
+

@@ -68,3 +68,4 @@ export function generateHeatmapGrid(entries: JournalEntry[], daysCount: number =
 
   return result;
 }
+

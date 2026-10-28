@@ -1,41 +1,61 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Haptics } from '../../utils/haptics';
+import { audioEngine } from '../../utils/audioEngine';
 
 interface WaveformBarProps {
+  uri?: string;
   waveformHeights: number[];
   durationSec: number;
   recordedAt?: string;
 }
 
 export const WaveformBar: React.FC<WaveformBarProps> = ({
+  uri = '',
   waveformHeights,
   durationSec,
   recordedAt,
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentProgress, setCurrentProgress] = useState(0);
+  const activePlaybackRef = useRef<{ stop: () => void } | null>(null);
 
   useEffect(() => {
-    let interval: any;
-    if (isPlaying) {
-      interval = setInterval(() => {
-        setCurrentProgress((prev) => {
-          if (prev >= 1) {
-            setIsPlaying(false);
-            return 0;
-          }
-          return prev + 1 / (durationSec * 10);
-        });
-      }, 100);
-    }
-    return () => clearInterval(interval);
-  }, [isPlaying, durationSec]);
+    return () => {
+      if (activePlaybackRef.current) {
+        activePlaybackRef.current.stop();
+      }
+    };
+  }, []);
 
   const togglePlay = () => {
     Haptics.selectionAsync();
-    setIsPlaying(!isPlaying);
+
+    if (isPlaying) {
+      if (activePlaybackRef.current) {
+        activePlaybackRef.current.stop();
+        activePlaybackRef.current = null;
+      }
+      setIsPlaying(false);
+    } else {
+      setIsPlaying(true);
+      setCurrentProgress(0);
+
+      const playback = audioEngine.playAudio(
+        uri,
+        (progress) => {
+          setCurrentProgress(progress);
+        },
+        () => {
+          setIsPlaying(false);
+          setCurrentProgress(0);
+          activePlaybackRef.current = null;
+        }
+      );
+
+      activePlaybackRef.current = playback;
+    }
   };
 
   const activeIndex = Math.floor(currentProgress * waveformHeights.length);
@@ -53,6 +73,7 @@ export const WaveformBar: React.FC<WaveformBarProps> = ({
         onPress={togglePlay}
         accessibilityRole="button"
         accessibilityLabel={isPlaying ? 'Pause voice reflection' : 'Play voice reflection'}
+        testID="waveform-play-btn"
       >
         <Ionicons name={isPlaying ? 'pause' : 'play'} size={18} color="#FFFFFF" />
       </TouchableOpacity>
@@ -60,7 +81,7 @@ export const WaveformBar: React.FC<WaveformBarProps> = ({
       <View style={styles.waveformWrap}>
         <View style={styles.barsRow}>
           {waveformHeights.map((h, idx) => {
-            const isActive = idx <= activeIndex;
+            const isActive = idx <= activeIndex && isPlaying;
             return (
               <View
                 key={idx}
@@ -76,9 +97,20 @@ export const WaveformBar: React.FC<WaveformBarProps> = ({
 
         <View style={styles.timeRow}>
           <Text style={styles.timeText}>
-            {isPlaying ? formatTime(currentProgress * durationSec) : formatTime(durationSec)}
+            {isPlaying
+              ? formatTime(currentProgress * durationSec)
+              : formatTime(durationSec)}
           </Text>
-          {recordedAt ? <Text style={styles.recordedAtText}>Recorded at {recordedAt}</Text> : null}
+          <View style={styles.liveTagRow}>
+            {isPlaying ? (
+              <View style={styles.playingTag}>
+                <View style={styles.playingDot} />
+                <Text style={styles.playingTagText}>Playing voice</Text>
+              </View>
+            ) : recordedAt ? (
+              <Text style={styles.recordedAtText}>Recorded at {recordedAt}</Text>
+            ) : null}
+          </View>
         </View>
       </View>
     </View>
@@ -133,6 +165,26 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
     color: '#94A3B8',
+  },
+  liveTagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  playingTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  playingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#10B981',
+  },
+  playingTagText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#34D399',
   },
   recordedAtText: {
     fontSize: 10,

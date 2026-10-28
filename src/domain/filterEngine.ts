@@ -72,3 +72,4 @@ export function extractUniqueTags(entries: JournalEntry[]): string[] {
   });
   return Array.from(set).sort();
 }
+

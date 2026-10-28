@@ -16,3 +16,4 @@ export interface IPocketLogApi {
   resetToSampleData(): Promise<void>;
   nuclearDataWipe(): Promise<void>;
 }
+

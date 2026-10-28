@@ -70,3 +70,4 @@ export interface VaultSettings {
   obfuscateOnBackground: boolean;
   lastUnlockedAt?: string;
 }
+

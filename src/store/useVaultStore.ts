@@ -25,3 +25,4 @@ export const useVaultStore = create<VaultStoreState>((set) => ({
   setObfuscated: (obfuscated) => set({ isBackgroundObfuscated: obfuscated }),
   setInitialized: () => set({ hasInitializedVault: true }),
 }));
+

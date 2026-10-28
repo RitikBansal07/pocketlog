@@ -144,6 +144,7 @@ export const EntryDetailScreen: React.FC = () => {
               <View style={styles.audioSection}>
                 <Text style={styles.sectionHeader}>AUDIO VOICE REFLECTION</Text>
                 <WaveformBar
+                  uri={entry.audioMemo.uri}
                   waveformHeights={entry.audioMemo.waveformHeights}
                   durationSec={entry.audioMemo.durationSec}
                   recordedAt={entry.audioMemo.recordedAt}
@@ -422,3 +423,4 @@ const styles = StyleSheet.create({
     color: '#818CF8',
   },
 });
+

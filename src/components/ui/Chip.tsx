@@ -107,3 +107,4 @@ const styles = StyleSheet.create({
     color: '#A5B4FC',
   },
 });
+
